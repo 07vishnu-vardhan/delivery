@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Food Delivery</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: green; }
+    .products { display: flex; gap: 20px; }
+    .product { border: 1px solid #ccc; padding: 10px; width: 150px; text-align: center; }
+    .cart { margin-top: 20px; border-top: 2px solid #333; padding-top: 10px; }
+    button { margin-top: 10px; padding: 5px 10px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🍎 Food Delivery</h1>
+
+  <div class="products">
+    <div class="product">
+      <p>Apples</p>
+      <p>₹50</p>
+      <button onclick="addToCart('Apples', 50)">Add to Cart</button>
+    </div>
+    <div class="product">
+      <p>Bread</p>
+      <p>₹30</p>
+      <button onclick="addToCart('Bread', 30)">Add to Cart</button>
+    </div>
+    <div class="product">
+      <p>Milk</p>
+      <p>₹25</p>
+      <button onclick="addToCart('Milk', 25)">Add to Cart</button>
+    </div>
+  </div>
+
+  <div class="cart">
+    <h2>🛒 Cart</h2>
+    <ul id="cart-list"></ul>
+    <p><strong>Total:</strong> ₹<span id="total">0</span></p>
+    <input type="tel" id="phone" placeholder="Enter phone number" />
+    <button onclick="checkout()">Checkout</button>
+  </div>
+
+  <script>
+    let cart = [];
+    let total = 0;
+
+    function addToCart(item, price) {
+      cart.push({ item, price });
+      total += price;
+      renderCart();
+    }
+
+    function renderCart() {
+      const list = document.getElementById("cart-list");
+      list.innerHTML = "";
+      cart.forEach(c => {
+        const li = document.createElement("li");
+        li.textContent = `${c.item} - ₹${c.price}`;
+        list.appendChild(li);
+      });
+      document.getElementById("total").textContent = total;
+    }
+
+    function checkout() {
+      const phone = document.getElementById("phone").value;
+      if (!phone) {
+        alert("Please enter your phone number to place order!");
+        return;
+      }
+      if (cart.length === 0) {
+        alert("Your cart is empty!");
+        return;
+      }
+      alert("✅ Order placed successfully! We will contact you at " + phone);
+      cart = [];
+      total = 0;
+      renderCart();
+      document.getElementById("phone").value = "";
+    }
+  </script>
+</body>
+</html>
