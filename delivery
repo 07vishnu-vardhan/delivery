@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Instamart-like Food Delivery (HTML/CSS/JS)</title>
+  <meta name="description" content="Simple Instamart-like single-file demo using HTML, CSS and vanilla JavaScript with cart, categories, search, checkout and localStorage persistence." />
+  <style>
+    /* Simple reset */
+    * { box-sizing: border-box; }
+    html,body { height:100%; margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:#f3f4f6; color:#111827; }
+
+    /* Layout */
+    .container { max-width:1100px; margin:24px auto; padding:16px; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo { width:56px; height:56px; background:#16a34a; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; border-radius:8px; }
+    h1 { margin:0; font-size:20px; }
+    p.lead { margin:0; color:#6b7280; font-size:13px; }
+
+    /* Grid */
+    .grid { display:grid; grid-template-columns: 260px 1fr 320px; gap:16px; margin-top:18px; }
+    @media (max-width: 980px) { .grid{ grid-template-columns: 1fr; } .aside, .cart { order:2; } .main { order:1; } }
+
+    .card { background:white; border-radius:8px; padding:12px; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+
+    /* Filters */
+    .categories { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .chip { padding:6px 10px; background:#f3f4f6; border-radius:999px; cursor:pointer; font-size:13px; }
+    .chip.active { background:#4f46e5; color:white; }
+
+    .search { display:flex; gap:8px; align-items:center; margin-top:12px; }
+    .search input { flex:1; padding:8px 10px; border-radius:8px; border:1px solid #e5e7eb; }
+    .search button { padding:8px 10px; border-radius:8px; border:1px solid #e5e7eb; background:white; cursor:pointer; }
+
+    /* Product grid */
+    .product-grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
+    .product { display:flex; gap:10px; align-items:center; padding:10px; border-radius:8px; border:1px solid #eef2ff; }
+    .product img { width:120px; height:80px; object-fit:cover; border-radius:6px; }
+    .product .meta { flex:1; }
+    .product .meta h4 { margin:0 0 6px 0; font-size:15px; }
+    .product .meta p { margin:0; font-size:13px; color:#6b7280; }
+    .product .price { font-weight:700; margin-top:6px; }
+    .product button { margin-left:auto; padding:8px 10px; border-radius:8px; background:#16a34a; color:white; border:0; cursor:pointer; }
+
+    /* Cart */
+    .cart-list { max-height:420px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
+    .cart-item { display:flex; gap:10px; align-items:center; }
+    .cart-item img { width:56px; height:44px; object-fit:cover; border-radius:6px; }
+    .qty { display:flex; gap:6px; align-items:center; }
+    .qty button { padding:6px 8px; border-radius:6px; border:1px solid #e5e7eb; background:white; cursor:pointer; }
+    .totals { border-top:1px dashed #e5e7eb; padding-top:10px; margin-top:10px; }
+    .checkout-btn { width:100%; padding:10px; border-radius:8px; background:#4f46e5; color:white; border:0; font-weight:600; cursor:pointer; }
+
+    /* Modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:50; }
+    .modal { width:100%; max-width:700px; background:white; border-radius:10px; padding:18px; }
+    .form-row { display:flex; gap:12px; }
+    .form-row .field { flex:1; }
+    .field input, .field textarea { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #e5e7eb; }
+    .error { color:#dc2626; font-size:13px; margin-top:6px; }
+
+    /* small helpers */
+    .muted { color:#6b7280; font-size:13px; }
+    .small { font-size:13px; }
+    .success-toast { position:fixed; right:18px; bottom:18px; background:white; padding:12px 14px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+
+    footer { text-align:center; color:#6b7280; margin-top:18px; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo">IM</div>
+        <div>
+          <h1>Instamart — Mini (vanilla web)</h1>
+          <p class="lead">Groceries & everyday essentials</p>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center;">
+        <div class="search" style="min-width:260px;">
+          <input id="searchInput" type="search" placeholder="Search products, brands..." />
+          <button id="clearSearchBtn" title="Clear">✕</button>
+        </div>
+        <button id="openCheckout" class="checkout-btn" style="width:auto;padding:8px 12px;">Checkout</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Left: Filters -->
+      <aside class="aside card">
+        <h3>Filters</h3>
+        <div class="categories" id="categoryList"></div>
+
+        <div style="margin-top:12px;">
+          <h4 style="margin:0 0 6px 0;">Phone (optional quick add)</h4>
+          <input id="quickPhone" placeholder="e.g. +919876543210" />
+          <div class="muted" style="margin-top:6px;">Phone will be requested on checkout but you can add it here for convenience.</div>
+        </div>
+      </aside>
+
+      <!-- Center: Products -->
+      <main class="main card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="margin:0;">Products</h2>
+          <div class="muted" id="resultsCount">0 results</div>
+        </div>
+
+        <div style="margin-top:12px;" class="product-grid" id="productGrid"></div>
+      </main>
+
+      <!-- Right: Cart -->
+      <aside class="cart card">
+        <h3>Your Cart</h3>
+        <div class="cart-list" id="cartList">
+          <div class="muted">Cart is empty — add items to get started.</div>
+        </div>
+
+        <div class="totals" id="totalsSection">
+          <div style="display:flex; justify-content:space-between;"><div class="small">Subtotal</div><div class="small" id="subtotal">₹0</div></div>
+          <div style="display:flex; justify-content:space-between;"><div class="small">Delivery</div><div class="small" id="delivery">₹0</div></div>
+          <div style="display:flex; justify-content:space-between;"><div class="small">Tax (5%)</div><div class="small" id="tax">₹0</div></div>
+          <div style="display:flex; justify-content:space-between; font-weight:700; margin-top:8px;"><div>Total</div><div id="total">₹0</div></div>
+
+          <button id="checkoutBtn" class="checkout-btn" style="margin-top:10px;">Proceed to Checkout</button>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      Demo — open this file in a browser. Cart & orders use localStorage for persistence.
+    </footer>
+  </div>
+
+  <!-- Modal (hidden by default) -->
+  <div id="modalRoot" style="display:none;"></div>
+
+  <script>
+    // Sample product data
+    const SAMPLE_PRODUCTS = [
+      { id: 1, name: 'Fresh Milk 1L', category: 'Dairy', price: 45, image: 'https://via.placeholder.com/400x300?text=Milk' },
+      { id: 2, name: 'Brown Bread', category: 'Bakery', price: 35, image: 'https://via.placeholder.com/400x300?text=Bread' },
+      { id: 3, name: 'Organic Eggs (6)', category: 'Dairy', price: 90, image: 'https://via.placeholder.com/400x300?text=Eggs' },
+      { id: 4, name: 'Bananas (1kg)', category: 'Fruits', price: 60, image: 'https://via.placeholder.com/400x300?text=Bananas' },
+      { id: 5, name: 'Tomatoes (1kg)', category: 'Vegetables', price: 50, image: 'https://via.placeholder.com/400x300?text=Tomatoes' },
+      { id: 6, name: 'Paneer 200g', category: 'Dairy', price: 120, image: 'https://via.placeholder.com/400x300?text=Paneer' },
+      { id: 7, name: 'Cooking Oil 1L', category: 'Grocery', price: 180, image: 'https://via.placeholder.com/400x300?text=Oil' },
+      { id: 8, name: 'Pasta 500g', category: 'Grocery', price: 90, image: 'https://via.placeholder.com/400x300?text=Pasta' },
+    ];
+
+    // Simple app state
+    const state = {
+      products: SAMPLE_PRODUCTS,
+      category: 'All',
+      query: '',
+      cart: JSON.parse(localStorage.getItem('instamart_cart') || '{}'),
+      orders: JSON.parse(localStorage.getItem('instamart_orders') || '[]'),
+    };
+
+    // Helpers
+    const $ = id => document.getElementById(id);
+
+    function saveCart() { localStorage.setItem('instamart_cart', JSON.stringify(state.cart)); }
+    function saveOrders() { localStorage.setItem('instamart_orders', JSON.stringify(state.orders)); }
+
+    // UI rendering
+    function renderCategories() {
+      const cats = ['All', ...Array.from(new Set(state.products.map(p => p.category)))];
+      const container = $('categoryList'); container.innerHTML = '';
+      cats.forEach(cat => {
+        const btn = document.createElement('div'); btn.className = 'chip' + (cat === state.category ? ' active' : ''); btn.textContent = cat;
+        btn.addEventListener('click', () => { state.category = cat; render(); });
+        container.appendChild(btn);
+      });
+    }
+
+    function filteredProducts() {
+      return state.products.filter(p => {
+        const matchesCat = state.category === 'All' || p.category === state.category;
+        const matchesQ = p.name.toLowerCase().includes(state.query.toLowerCase());
+        return matchesCat && matchesQ;
+      });
+    }
+
+    function renderProducts() {
+      const grid = $('productGrid'); grid.innerHTML = '';
+      const list = filteredProducts();
+      $('resultsCount').textContent = list.length + ' result(s)';
+      list.forEach(p => {
+        const card = document.createElement('div'); card.className = 'product';
+        card.innerHTML = `
+          <img src="${p.image}" alt="${p.name}" />
+          <div class="meta">
+            <h4>${p.name}</h4>
+            <p>${p.category}</p>
+            <div class="price">₹${p.price}</div>
+          </div>
+        `;
+        const btn = document.createElement('button'); btn.textContent = 'Add';
+        btn.addEventListener('click', () => addToCart(p.id, 1));
+        card.appendChild(btn);
+        grid.appendChild(card);
+      });
+    }
+
+    function renderCart() {
+      const list = $('cartList'); list.innerHTML = '';
+      const items = Object.values(state.cart);
+      if (items.length === 0) { list.innerHTML = '<div class="muted">Cart is empty — add items to get started.</div>'; }
+      else {
+        items.forEach(it => {
+          const row = document.createElement('div'); row.className = 'cart-item';
+          row.innerHTML = `
+            <img src="${it.product.image}" alt="${it.product.name}" />
+            <div style="flex:1;">
+              <div style="font-weight:600;">${it.product.name}</div>
+              <div class="muted">₹${it.product.price}</div>
+            </div>
+          `;
+          const qtyWrap = document.createElement('div'); qtyWrap.className = 'qty';
+          const minus = document.createElement('button'); minus.textContent = '-';
+          minus.addEventListener('click', () => updateQty(it.product.id, it.qty - 1));
+          const qty = document.createElement('div'); qty.textContent = it.qty;
+          const plus = document.createElement('button'); plus.textContent = '+';
+          plus.addEventListener('click', () => updateQty(it.product.id, it.qty + 1));
+          const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.style.marginLeft='8px'; remove.style.background='transparent'; remove.style.border='0'; remove.style.color='#ef4444'; remove.style.cursor='pointer';
+          remove.addEventListener('click', () => removeFromCart(it.product.id));
+          qtyWrap.appendChild(minus); qtyWrap.appendChild(qty); qtyWrap.appendChild(plus); qtyWrap.appendChild(remove);
+          row.appendChild(qtyWrap);
+          list.appendChild(row);
+        });
+      }
+      renderTotals();
+    }
+
+    function renderTotals() {
+      const items = Object.values(state.cart);
+      const subtotal = items.reduce((s, it) => s + it.product.price * it.qty, 0);
+      const delivery = subtotal === 0 ? 0 : (subtotal > 199 ? 0 : 30);
+      const tax = +(subtotal * 0.05).toFixed(2);
+      const total = +(subtotal + delivery + tax).toFixed(2);
+      $('subtotal').textContent = '₹' + subtotal;
+      $('delivery').textContent = '₹' + delivery;
+      $('tax').textContent = '₹' + tax;
+      $('total').textContent = '₹' + total;
+    }
+
+    // Cart management
+    function addToCart(productId, qty = 1) {
+      const product = state.products.find(p => p.id === productId);
+      if (!product) return;
+      if (!state.cart[productId]) state.cart[productId] = { product, qty: 0 };
+      state.cart[productId].qty += qty;
+      if (state.cart[productId].qty <= 0) delete state.cart[productId];
+      saveCart(); renderCart();
+    }
+
+    function updateQty(productId, qty) {
+      if (!state.cart[productId]) return;
+      state.cart[productId].qty = Math.max(0, qty);
+      if (state.cart[productId].qty === 0) delete state.cart[productId];
+      saveCart(); renderCart();
+    }
+
+    function removeFromCart(productId) {
+      delete state.cart[productId]; saveCart(); renderCart();
+    }
+
+    // Modal system
+    function openModal(contentHtml) {
+      const root = $('modalRoot'); root.style.display = 'block';
+      root.innerHTML = '';
+      const backdrop = document.createElement('div'); backdrop.className = 'modal-backdrop';
+      backdrop.innerHTML = `<div class="modal">${contentHtml}</div>`;
+      backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+      root.appendChild(backdrop);
+    }
+    function closeModal() { const root = $('modalRoot'); root.style.display = 'none'; root.innerHTML = ''; }
+
+    // Checkout form & validation
+    function openCheckoutModal(prefillPhone) {
+      const items = Object.values(state.cart);
+      const subtotal = items.reduce((s, it) => s + it.product.price * it.qty, 0);
+      const delivery = subtotal === 0 ? 0 : (subtotal > 199 ? 0 : 30);
+      const tax = +(subtotal * 0.05).toFixed(2);
+      const total = +(subtotal + delivery + tax).toFixed(2);
+
+      const html = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3>Checkout</h3>
+          <button id="modalClose" style="background:transparent;border:0;font-size:18px;cursor:pointer;">✕</button>
+        </div>
+        <form id="checkoutForm" style="margin-top:8px;">
+          <div class="form-row" style="margin-bottom:8px;">
+            <div class="field"><label class="small">Full name</label><input id="custName" required /></div>
+            <div class="field"><label class="small">Phone</label><input id="custPhone" value="${prefillPhone||''}" placeholder="+919876543210" required /></div>
+          </div>
+          <div style="margin-bottom:8px;"><label class="small">Delivery address</label><textarea id="custAddress" rows="3" required></textarea></div>
+          <div class="muted small">Items: ${items.length} • Subtotal: ₹${subtotal} • Delivery: ₹${delivery} • Tax: ₹${tax} • <strong>Total: ₹${total}</strong></div>
+          <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
+            <button type="button" id="cancelBtn" style="padding:8px 10px;border-radius:8px;border:1px solid #e5e7eb;background:white;">Cancel</button>
+            <button type="submit" style="padding:8px 12px;border-radius:8px;background:#16a34a;color:white;border:0;">Place order</button>
+          </div>
+          <div id="formError" class="error" style="display:none;">Validation error</div>
+        </form>
+      `;
+
+      openModal(html);
+      document.getElementById('modalClose').addEventListener('click', closeModal);
+      document.getElementById('cancelBtn').addEventListener('click', closeModal);
+      document.getElementById('checkoutForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitOrder();
+      });
+    }
+
+    function validatePhone(phone) {
+      const p = phone.replace(/[\s-]/g, '');
+      return /^\+?[0-9]{7,15}$/.test(p);
+    }
+
+    function submitOrder() {
+      const name = document.getElementById('custName').value.trim();
+      const phone = document.getElementById('custPhone').value.trim();
+      const address = document.getElementById('custAddress').value.trim();
+      const errEl = document.getElementById('formError'); errEl.style.display='none';
+      if (!name) { errEl.textContent = 'Full name is required.'; errEl.style.display='block'; return; }
+      if (!validatePhone(phone)) { errEl.textContent = 'Enter a valid phone number.'; errEl.style.display='block'; return; }
+      if (!address) { errEl.textContent = 'Delivery address is required.'; errEl.style.display='block'; return; }
+
+      const items = Object.values(state.cart);
+      if (items.length === 0) { errEl.textContent = 'Your cart is empty.'; errEl.style.display='block'; return; }
+
+      const subtotal = items.reduce((s, it) => s + it.product.price * it.qty, 0);
+      const delivery = subtotal === 0 ? 0 : (subtotal > 199 ? 0 : 30);
+      const tax = +(subtotal * 0.05).toFixed(2);
+      const total = +(subtotal + delivery + tax).toFixed(2);
+
+      const order = {
+        id: 'ORD-' + Date.now(), createdAt: new Date().toISOString(), items, subtotal, delivery, tax, total,
+        customer: { name, phone, address }
+      };
+
+      state.orders.unshift(order); saveOrders();
+      state.cart = {}; saveCart(); renderCart(); closeModal(); showSuccess(order);
+    }
+
+    function showSuccess(order) {
+      const root = document.createElement('div'); root.className = 'success-toast';
+      root.innerHTML = `<div style="font-weight:700;">Order placed</div><div class="muted small">${order.id} • ${new Date(order.createdAt).toLocaleString()}</div><div style="margin-top:8px;">Thanks ${order.customer.name}! We'll contact you at ${order.customer.phone}.</div><div style="text-align:right;margin-top:8px;"><button id='dismissToast' style='background:transparent;border:0;color:#4f46e5;cursor:pointer;'>Dismiss</button></div>`;
+      document.body.appendChild(root);
+      document.getElementById('dismissToast').addEventListener('click', () => root.remove());
+      setTimeout(() => { try{root.remove();}catch(e){} }, 8000);
+    }
+
+    // Event wiring
+    document.getElementById('searchInput').addEventListener('input', (e) => { state.query = e.target.value; renderProducts(); });
+    document.getElementById('clearSearchBtn').addEventListener('click', () => { state.query=''; document.getElementById('searchInput').value=''; renderProducts(); });
+    document.getElementById('openCheckout').addEventListener('click', () => openCheckoutModal(document.getElementById('quickPhone').value));
+    document.getElementById('checkoutBtn').addEventListener('click', () => openCheckoutModal(document.getElementById('quickPhone').value));
+
+    // initial render
+    function render() { renderCategories(); renderProducts(); renderCart(); }
+    render();
+
+    // expose some helpers to console for debugging/testing
+    window.__instamart = { state, addToCart, updateQty, removeFromCart };
+  </script>
+</body>
+</html>
